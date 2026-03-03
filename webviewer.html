@@ -268,8 +268,11 @@ window.excelJS_addSheet = function (name, optionsJson) {
 window.excelJS_setSheetVisibility = function (sheetName, visible) {
   try {
     requireWorkbook();
-    getSheet(sheetName).state = visible ? 'visible' : 'hidden';
-    return ok('Sheet ' + sheetName + ': ' + (visible ? 'visible' : 'hidden'));
+    // FileMaker passes booleans as strings: false → "0", true → "1"
+    // "0" is truthy in JS, so normalise explicitly.
+    var isVisible = visible && visible !== '0' && visible !== 'false';
+    getSheet(sheetName).state = isVisible ? 'visible' : 'hidden';
+    return ok('Sheet ' + sheetName + ': ' + (isVisible ? 'visible' : 'hidden'));
   } catch (e) { return fail(e.message); }
 };
 
@@ -509,6 +512,18 @@ window.excelJS_finalize = function (filename) {
     : 'Output.xlsx';
 
   setStatus('Finalizing: ' + fname + '\u2026');
+
+  // Set active tab to the last visible sheet so Excel never tries to
+  // activate a hidden sheet (which would force it to become visible).
+  var sheets = window.excelState.workbook.worksheets;
+  var activeIdx = 0;
+  for (var i = sheets.length - 1; i >= 0; i--) {
+    if (sheets[i].state !== 'hidden' && sheets[i].state !== 'veryHidden') {
+      activeIdx = i;
+      break;
+    }
+  }
+  window.excelState.workbook.views = [{ activeTab: activeIdx }];
 
   window.excelState.workbook.xlsx.writeBuffer()
     .then(function (buffer) {
