@@ -107,6 +107,16 @@ function bufferToBase64(buffer) {
   return btoa(binary);
 }
 
+/**
+ * Normalise a boolean value arriving from FileMaker's Perform JavaScript step.
+ * FM passes false as the number 0, which Perform JavaScript serialises to the
+ * string "0". "0" is truthy in JS, so a plain `!!value` test is wrong.
+ * This helper treats "0", "false", 0, false, null, undefined as false.
+ */
+function parseFMBool(v) {
+  return v !== false && v !== 0 && v !== '0' && v !== 'false' && v != null && v !== '';
+}
+
 // ----------------------------------------------------------------
 // Style presets
 // _height is an internal hint consumed by excelJS_styleRow only
@@ -268,9 +278,7 @@ window.excelJS_addSheet = function (name, optionsJson) {
 window.excelJS_setSheetVisibility = function (sheetName, visible) {
   try {
     requireWorkbook();
-    // FileMaker passes booleans as strings: false → "0", true → "1"
-    // "0" is truthy in JS, so normalise explicitly.
-    var isVisible = visible && visible !== '0' && visible !== 'false';
+    var isVisible = parseFMBool(visible);
     getSheet(sheetName).state = isVisible ? 'visible' : 'hidden';
     return ok('Sheet ' + sheetName + ': ' + (isVisible ? 'visible' : 'hidden'));
   } catch (e) { return fail(e.message); }
