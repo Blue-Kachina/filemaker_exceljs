@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExcelJS Worker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+      background: #eef2f8;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.5em;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 24px rgba(68,114,196,0.12);
+      padding: 2em 2.5em;
+      max-width: 520px;
+      width: 100%;
+    }
+    .icon { font-size: 2em; margin-bottom: 0.2em; }
+    h1 { color: #4472C4; font-size: 1.3em; margin-bottom: 1em; }
+    .label {
+      font-size: 0.75em;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.3em;
+    }
+    #status {
+      font-size: 0.9em;
+      color: #555;
+      padding: 0.6em 0.8em;
+      background: #f4f6fb;
+      border-radius: 5px;
+      border-left: 3px solid #4472C4;
+      min-height: 2.4em;
+      word-break: break-word;
+    }
+    #status.error   { color: #c0392b; border-left-color: #c0392b; background: #fff5f5; }
+    #status.success { color: #27ae60; border-left-color: #27ae60; background: #f0fff4; }
+    #status.ready   { color: #4472C4; border-left-color: #4472C4; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="icon">&#128202;</div>
+  <h1>ExcelJS Worker</h1>
+  <div class="label">Last Operation</div>
+  <div id="status" class="ready">Ready &#8212; waiting for FileMaker.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script>
+"use strict";
+
+// ----------------------------------------------------------------
+// Persistent state — lives as long as this WebViewer page is loaded
+// ----------------------------------------------------------------
+window.excelState = { workbook: null };
+
+// ----------------------------------------------------------------
+// Internal helpers
+// ----------------------------------------------------------------
+function setStatus(msg, cls) {
+  var el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+function ok(msg) {
+  setStatus(msg, 'success');
+  return JSON.stringify({ success: true });
+}
+
+function fail(msg) {
+  var s = String(msg);
+  setStatus('Error: ' + s, 'error');
+  return JSON.stringify({ success: false, error: s });
+}
+
+function requireWorkbook() {
+  if (!window.excelState.workbook) throw new Error('Workbook not initialized');
+}
+
+function getSheet(name) {
+  var ws = window.excelState.workbook.getWorksheet(name);
+  if (!ws) throw new Error('Sheet not found: ' + name);
+  return ws;
+}
+
+function bufferToBase64(buffer) {
+  var bytes = new Uint8Array(buffer);
+  var binary = '';
+  var chunk = 8192;
+  for (var i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+// ----------------------------------------------------------------
+// Style presets
+// _height is an internal hint consumed by excelJS_styleRow only
+// ----------------------------------------------------------------
+var STYLE_PRESETS = {
+  header: {
+    font:      { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } },
+    fill:      { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } },
+    alignment: { horizontal: 'center', vertical: 'middle' },
+    border:    { bottom: { style: 'medium', color: { argb: 'FF000000' } } },
+    _height:   28,
+  },
+  hiddenHeader: {
+    font:      { name: 'Calibri', size: 11, color: { argb: 'FF000000' } },
+    fill:      { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } },
+    alignment: { horizontal: 'center', vertical: 'middle' },
+    border:    { bottom: { style: 'medium', color: { argb: 'FF000000' } } },
+  },
+  listHeader: {
+    font:      { name: 'Calibri', size: 11, color: { argb: 'FF000000' } },
+    fill:      { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } },
+    alignment: { horizontal: 'center', vertical: 'middle' },
+  },
+  currency: {
+    numFmt:    '$#,##0.00',
+    alignment: { horizontal: 'right' },
+  },
+  number: {
+    numFmt:    '#,##0.##',
+    alignment: { horizontal: 'right' },
+  },
+  date: {
+    numFmt:    'MM/DD/YYYY',
+    alignment: { horizontal: 'center' },
+  },
+  dropdown: {
+    fill:      { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF99' } },
+  },
+  text: {
+    numFmt:    '@',
+    alignment: { horizontal: 'left' },
+  },
+  center: {
+    alignment: { horizontal: 'center' },
+  },
+  bold: {
+    font: { name: 'Calibri', size: 11, bold: true },
+  },
+};
+
+/**
+ * Resolve a preset name or raw style object to a plain ExcelJS style object.
+ * Strips the internal _height hint before returning.
+ */
+function resolveStyle(presetOrJson) {
+  var raw;
+  if (typeof presetOrJson === 'string') {
+    raw = STYLE_PRESETS[presetOrJson];
+    if (!raw) throw new Error('Unknown style preset: ' + presetOrJson);
+  } else {
+    raw = presetOrJson;
+  }
+  // Shallow copy, omitting the internal _height hint
+  var style = {};
+  var keys = Object.keys(raw);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i] !== '_height') style[keys[i]] = raw[keys[i]];
+  }
+  return style;
+}
+
+/** Apply a preset name or raw style to a single cell. */
+function applyStyle(cell, presetOrJson) {
+  var s = resolveStyle(presetOrJson);
+  if (s.font)      cell.font      = s.font;
+  if (s.fill)      cell.fill      = s.fill;
+  if (s.alignment) cell.alignment = s.alignment;
+  if (s.border)    cell.border    = s.border;
+  if (s.numFmt)    cell.numFmt    = s.numFmt;
+}
+
+/** Return the _height hint for a preset name, or null. */
+function getPresetHeight(presetOrJson) {
+  if (typeof presetOrJson === 'string') {
+    return (STYLE_PRESETS[presetOrJson] || {})._height || null;
+  }
+  return null;
+}
+
+/**
+ * Parse a style argument arriving from FileMaker.
+ * If the string matches a preset name, return the string (resolveStyle handles it).
+ * Otherwise, try JSON.parse to convert a raw style JSON string to an object.
+ */
+function parseStyleArg(arg) {
+  if (typeof arg !== 'string') return arg;
+  if (STYLE_PRESETS[arg]) return arg;
+  return JSON.parse(arg);
+}
+
+// ----------------------------------------------------------------
+// Public API — all functions exposed on window so FileMaker can
+// call them via "Perform JavaScript in Web Viewer" by name
+// ----------------------------------------------------------------
+
+/**
+ * excelJS_init()
+ * Creates a new ExcelJS Workbook and resets excelState.
+ * Return: JSON { success: true }
+ */
+window.excelJS_init = function () {
+  try {
+    window.excelState.workbook = new ExcelJS.Workbook();
+    return ok('Workbook initialized.');
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addSheet(name, optionsJson)
+ * optionsJson (JSON string, optional):
+ *   {
+ *     hidden:    bool,      // hide from workbook tab bar
+ *     tabColor:  "#rrggbb", // tab accent colour
+ *     frozenRow: N,         // freeze top N rows
+ *     frozenCol: N          // freeze left N columns
+ *   }
+ */
+window.excelJS_addSheet = function (name, optionsJson) {
+  try {
+    requireWorkbook();
+    var opts = optionsJson
+      ? (typeof optionsJson === 'string' ? JSON.parse(optionsJson) : optionsJson)
+      : {};
+    var wsOpts = {};
+    if (opts.hidden) wsOpts.state = 'hidden';
+    if (opts.tabColor) {
+      wsOpts.properties = {
+        tabColor: { argb: opts.tabColor.replace(/^#/, 'FF') },
+      };
+    }
+    var ws = window.excelState.workbook.addWorksheet(name, wsOpts);
+    if (opts.frozenRow || opts.frozenCol) {
+      ws.views = [{
+        state:      'frozen',
+        ySplit:     Number(opts.frozenRow) || 0,
+        xSplit:     Number(opts.frozenCol) || 0,
+        activeCell: 'A' + ((Number(opts.frozenRow) || 0) + 1),
+      }];
+    }
+    return ok('Added sheet: ' + name);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_setSheetVisibility(sheetName, visible)
+ * visible: true | false
+ */
+window.excelJS_setSheetVisibility = function (sheetName, visible) {
+  try {
+    requireWorkbook();
+    getSheet(sheetName).state = visible ? 'visible' : 'hidden';
+    return ok('Sheet ' + sheetName + ': ' + (visible ? 'visible' : 'hidden'));
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_setColumns(sheetName, columnsJson)
+ * columnsJson (JSON string or array):
+ *   [{ key, header, width, hidden, style: presetNameOrObject }, ...]
+ *   style is optional; accepts a preset name string or a raw ExcelJS style object
+ */
+window.excelJS_setColumns = function (sheetName, columnsJson) {
+  try {
+    requireWorkbook();
+    var ws   = getSheet(sheetName);
+    var cols = typeof columnsJson === 'string' ? JSON.parse(columnsJson) : columnsJson;
+    ws.columns = cols.map(function (c) {
+      var colDef = { key: c.key };
+      if (c.header !== undefined) colDef.header = c.header;
+      if (c.width  !== undefined) colDef.width  = c.width;
+      if (c.hidden !== undefined) colDef.hidden = c.hidden;
+      if (c.style  !== undefined) colDef.style  = resolveStyle(c.style);
+      return colDef;
+    });
+    return ok('Set ' + cols.length + ' columns on ' + sheetName);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addRow(sheetName, rowJson)
+ * rowJson (JSON string or object): { colKey: value, ... }
+ */
+window.excelJS_addRow = function (sheetName, rowJson) {
+  try {
+    requireWorkbook();
+    var ws   = getSheet(sheetName);
+    var data = typeof rowJson === 'string' ? JSON.parse(rowJson) : rowJson;
+    ws.addRow(data);
+    return ok('Added row to ' + sheetName);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addRows(sheetName, rowsJson)
+ * rowsJson (JSON string or array): array of rowJson objects
+ * Prefer this over N calls to excelJS_addRow for large datasets.
+ */
+window.excelJS_addRows = function (sheetName, rowsJson) {
+  try {
+    requireWorkbook();
+    var ws   = getSheet(sheetName);
+    var rows = typeof rowsJson === 'string' ? JSON.parse(rowsJson) : rowsJson;
+    rows.forEach(function (r) { ws.addRow(r); });
+    return ok('Added ' + rows.length + ' rows to ' + sheetName);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_setCellValue(sheetName, cellRef, value)
+ * cellRef: "A2", "B5", etc.
+ */
+window.excelJS_setCellValue = function (sheetName, cellRef, value) {
+  try {
+    requireWorkbook();
+    getSheet(sheetName).getCell(cellRef).value = value;
+    return ok('Set value at ' + sheetName + '!' + cellRef);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_setFormula(sheetName, cellRef, formula)
+ * formula: "=SUM(A1:A10)"  — leading = is optional
+ */
+window.excelJS_setFormula = function (sheetName, cellRef, formula) {
+  try {
+    requireWorkbook();
+    var f = String(formula).startsWith('=') ? String(formula).slice(1) : String(formula);
+    getSheet(sheetName).getCell(cellRef).value = { formula: f };
+    return ok('Set formula at ' + sheetName + '!' + cellRef);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_setFormulaRange(sheetName, startRow, endRow, colKey, formulaTemplate)
+ * Applies a per-row formula to every row in [startRow, endRow] on the given column.
+ * Use {ROW} in formulaTemplate as the row-number placeholder.
+ * Example:
+ *   excelJS_setFormulaRange("Main", 2, 51, "hidden_id_0",
+ *     "=IF(A{ROW}=\"\",\"\",INDEX(BudgetItems_VL!$A$2:$A$999,MATCH(A{ROW},BudgetItems_VL!$B$2:$B$999,0)))")
+ */
+window.excelJS_setFormulaRange = function (sheetName, startRow, endRow, colKey, formulaTemplate) {
+  try {
+    requireWorkbook();
+    var ws     = getSheet(sheetName);
+    var col    = ws.getColumn(colKey);
+    if (!col || !col.number) throw new Error('Column key not found: ' + colKey);
+    var colNum = col.number;
+    for (var r = Number(startRow); r <= Number(endRow); r++) {
+      var raw = String(formulaTemplate).replace(/\{ROW\}/g, String(r));
+      var f   = raw.startsWith('=') ? raw.slice(1) : raw;
+      ws.getCell(r, colNum).value = { formula: f };
+    }
+    return ok('Set formula range on ' + sheetName + ' col=' + colKey
+      + ' rows ' + startRow + '\u2013' + endRow);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_styleRow(sheetName, rowNum, presetOrStyleJson)
+ * presetOrStyleJson: preset name string  OR  ExcelJS style JSON string/object.
+ * Presets that define _height (e.g. "header") also set the row height.
+ */
+window.excelJS_styleRow = function (sheetName, rowNum, presetOrStyleJson) {
+  try {
+    requireWorkbook();
+    var ws       = getSheet(sheetName);
+    var row      = ws.getRow(Number(rowNum));
+    var styleArg = parseStyleArg(presetOrStyleJson);
+    row.eachCell({ includeEmpty: true }, function (cell) { applyStyle(cell, styleArg); });
+    var h = getPresetHeight(styleArg);
+    if (h) row.height = h;
+    return ok('Styled row ' + rowNum + ' on ' + sheetName);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_styleCell(sheetName, cellRef, presetOrStyleJson)
+ * presetOrStyleJson: preset name string  OR  ExcelJS style JSON string/object.
+ */
+window.excelJS_styleCell = function (sheetName, cellRef, presetOrStyleJson) {
+  try {
+    requireWorkbook();
+    var ws       = getSheet(sheetName);
+    var styleArg = parseStyleArg(presetOrStyleJson);
+    applyStyle(ws.getCell(cellRef), styleArg);
+    return ok('Styled cell ' + sheetName + '!' + cellRef);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_freezePane(sheetName, row, col)
+ * row: number of rows to freeze from top  (0 = no row freeze)
+ * col: number of columns to freeze from left  (0 = no column freeze)
+ */
+window.excelJS_freezePane = function (sheetName, row, col) {
+  try {
+    requireWorkbook();
+    var ws = getSheet(sheetName);
+    ws.views = [{
+      state:      'frozen',
+      ySplit:     Number(row) || 0,
+      xSplit:     Number(col) || 0,
+      activeCell: 'A' + ((Number(row) || 0) + 1),
+    }];
+    return ok('Froze pane on ' + sheetName
+      + ' (row=' + row + ', col=' + col + ')');
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addDefinedName(name, ref)
+ * name: "BudgetItems_range"
+ * ref:  "'BudgetItems_VL'!$B$2:$B$100"
+ */
+window.excelJS_addDefinedName = function (name, ref) {
+  try {
+    requireWorkbook();
+    window.excelState.workbook.definedNames.add(name, ref);
+    return ok('Added defined name: ' + name + ' = ' + ref);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addDropdown(sheetName, range, optionsJson)
+ * range:       "A2:A51"
+ * optionsJson (JSON string or object):
+ *   { formula1: "BudgetItems_range" }    — reference a defined name or sheet range
+ *   { values:   ["Option A", "Option B"] } — inline list (max ~255 chars total)
+ */
+window.excelJS_addDropdown = function (sheetName, range, optionsJson) {
+  try {
+    requireWorkbook();
+    var ws   = getSheet(sheetName);
+    var opts = typeof optionsJson === 'string' ? JSON.parse(optionsJson) : optionsJson;
+    var validation = {
+      type:         'list',
+      allowBlank:   true,
+      showDropDown: false,   // false = show the Excel dropdown arrow button
+    };
+    if (opts.formula1) {
+      validation.formulae = [opts.formula1];
+    } else if (opts.values) {
+      validation.formulae = ['"' + opts.values
+        .map(function (v) { return String(v).replace(/"/g, '""'); })
+        .join(',') + '"'];
+    } else {
+      throw new Error('optionsJson must contain formula1 or values');
+    }
+    ws.dataValidations.add(range, validation);
+    return ok('Added dropdown on ' + sheetName + '!' + range);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_finalize(filename)
+ *
+ * Writes the workbook to a buffer, base64-encodes it, and calls:
+ *   FileMaker.PerformScript("ExcelJS - Receive Workbook", payload)
+ *
+ * payload on success: JSON { base64: "...", filename: "..." }
+ * payload on error:   JSON { error: "..." }
+ *
+ * IMPORTANT — this function is asynchronous internally:
+ *   It returns { success: true, pending: true } synchronously.
+ *   The actual file delivery (or error report) happens via the
+ *   "ExcelJS - Receive Workbook" PerformScript callback.
+ *   Outside FileMaker (browser testing), it triggers a direct download.
+ */
+window.excelJS_finalize = function (filename) {
+  try {
+    requireWorkbook();
+  } catch (e) {
+    return fail(e.message);
+  }
+  var fname = (filename && String(filename).trim())
+    ? String(filename).trim()
+    : 'Output.xlsx';
+
+  setStatus('Finalizing: ' + fname + '\u2026');
+
+  window.excelState.workbook.xlsx.writeBuffer()
+    .then(function (buffer) {
+      var b64     = bufferToBase64(buffer);
+      var payload = JSON.stringify({ base64: b64, filename: fname });
+      setStatus('Workbook ready: ' + fname, 'success');
+      if (typeof FileMaker !== 'undefined') {
+        FileMaker.PerformScript('ExcelJS - Receive Workbook', payload);
+      } else {
+        // Browser test path — trigger a direct download
+        var blob = new Blob(
+          [buffer],
+          { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+        );
+        var url = URL.createObjectURL(blob);
+        var a   = document.createElement('a');
+        a.href     = url;
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+        setStatus('Browser download started: ' + fname, 'success');
+      }
+    })
+    .catch(function (e) {
+      setStatus('Finalize error: ' + e.message, 'error');
+      if (typeof FileMaker !== 'undefined') {
+        FileMaker.PerformScript(
+          'ExcelJS - Receive Workbook',
+          JSON.stringify({ error: e.message })
+        );
+      }
+    });
+
+  return JSON.stringify({
+    success: true,
+    pending: true,
+    message: 'Finalize started — workbook delivered via ExcelJS - Receive Workbook callback',
+  });
+};
+
+// Signal ready state on page load (no auto-run)
+setStatus('Ready \u2014 waiting for FileMaker.', 'ready');
+</script>
+
+</body>
+</html>

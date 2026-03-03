@@ -1,0 +1,47 @@
+# Laravel vendor dependencies
+/vendor/
+composer.lock
+
+# Node dependencies
+/node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment & configuration
+.env
+.env.*
+/config/*.php
+
+# Laravel storage & cache
+/storage/*
+!/storage/app/public
+/bootstrap/cache/*
+/public/storage
+
+# Logs
+*.log
+/storage/logs/*
+
+# Compiled assets
+/public/js/*
+/public/css/*
+/public/mix-manifest.json
+/public/hot
+/public/build
+
+# Testing
+/phpunit.xml
+/phpunit.xml.dist
+/.phpunit.result.cache
+/.coverage
+
+# IDE/editor files
+/.idea/
+/.vscode/
+/*.swp
+*~
+
+# OS-specific
+.DS_Store
+Thumbs.db
