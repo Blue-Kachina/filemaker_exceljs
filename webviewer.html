@@ -63,7 +63,7 @@
 // ----------------------------------------------------------------
 // Persistent state — lives as long as this WebViewer page is loaded
 // ----------------------------------------------------------------
-window.excelState = { workbook: null };
+window.excelState = { workbook: null, lastError: null };
 
 // ----------------------------------------------------------------
 // Internal helpers
@@ -81,8 +81,10 @@ function ok(msg) {
 
 function fail(msg) {
   var s = String(msg);
+  var result = JSON.stringify({ success: false, error: s });
   setStatus('Error: ' + s, 'error');
-  return JSON.stringify({ success: false, error: s });
+  window.excelState.lastError = result;
+  return result;
 }
 
 function requireWorkbook() {
@@ -217,6 +219,7 @@ function parseStyleArg(arg) {
  */
 window.excelJS_init = function () {
   try {
+    window.excelState.lastError = null;
     window.excelState.workbook = new ExcelJS.Workbook();
     return ok('Workbook initialized.');
   } catch (e) { return fail(e.message); }
@@ -489,6 +492,18 @@ window.excelJS_finalize = function (filename) {
   } catch (e) {
     return fail(e.message);
   }
+  if (window.excelState.lastError) {
+    var storedErr = JSON.parse(window.excelState.lastError);
+    setStatus('Finalize aborted: earlier operation failed — ' + storedErr.error, 'error');
+    if (typeof FileMaker !== 'undefined') {
+      FileMaker.PerformScript(
+        'ExcelJS - Receive Workbook',
+        JSON.stringify({ error: storedErr.error })
+      );
+    }
+    return window.excelState.lastError;
+  }
+
   var fname = (filename && String(filename).trim())
     ? String(filename).trim()
     : 'Output.xlsx';

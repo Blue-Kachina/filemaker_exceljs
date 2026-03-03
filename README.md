@@ -31,20 +31,10 @@ The WebViewer shows a status panel reflecting the last operation. No auto-run on
 
 ## Script Reference
 
-Every script calls **Perform JavaScript in Web Viewer** and stores the JS return value
-in the global variable `$$ExcelJS_LastResult` (a JSON string).
-
-Check success with:
-```
-JSONGetElement ( $$ExcelJS_LastResult ; "success" )   // returns 1 (true) or 0 (false)
-JSONGetElement ( $$ExcelJS_LastResult ; "error" )     // error message string (if any)
-```
-
-> **Note on `ExcelJS - Finalize`:** This script is asynchronous internally.
-> The `$$ExcelJS_LastResult` will contain `{ "success": true, "pending": true }` —
-> meaning the operation *started*, not that the file is ready. The actual workbook
-> arrives via `ExcelJS - Receive Workbook` being called back from JavaScript.
-> Check `$$ExcelJS_LastResult` from *that* script for the final outcome.
+Every script calls **Perform JavaScript in Web Viewer**. The JS return value is
+discarded by FileMaker. Check `$$ExcelJS_LastResult` only in the `ExcelJS - Receive
+Workbook` callback script — that is where all outcomes (success and error) are
+delivered.
 
 ---
 
@@ -62,7 +52,6 @@ Perform JavaScript in Web Viewer [
   Object Name: "ExcelJS Worker" ;
   Function Name: "excelJS_init"
 ]
-Set Variable [ $$ExcelJS_LastResult ; Result: Get(ScriptResult) ]
 ```
 
 ---
@@ -477,13 +466,6 @@ Generates the `.xlsx` buffer and delivers it to FileMaker via callback.
 |------------|-------|----------------------------------------------|
 | `filename` | Text  | Desired filename, e.g. `"Change Order.xlsx"` |
 
-**Synchronous return** (stored in `$$ExcelJS_LastResult`):
-```json
-{ "success": true, "pending": true, "message": "..." }
-```
-This means the export has *started*, not completed. The workbook arrives via the
-`ExcelJS - Receive Workbook` callback script (see below).
-
 **Example:**
 ```
 Perform JavaScript in Web Viewer [
@@ -491,8 +473,8 @@ Perform JavaScript in Web Viewer [
   Function Name: "excelJS_finalize" ;
   Parameters: "Change Order " & TEXT_HELPER::formatted_date & ".xlsx"
 ]
-Set Variable [ $$ExcelJS_LastResult ; Result: Get(ScriptResult) ]
-// No pause needed — FileMaker.PerformScript triggers ExcelJS - Receive Workbook
+// Outcome (success or error) is delivered asynchronously via the
+// ExcelJS - Receive Workbook callback — check $$ExcelJS_LastResult there.
 ```
 
 ---
@@ -658,24 +640,31 @@ populates `g_TempStorage`, and presents the Save As dialog via **Export Field Co
 
 ## Error Handling Pattern
 
-After any wrapper script call, check `$$ExcelJS_LastResult`:
+All error checking happens in `ExcelJS - Receive Workbook`. Errors from any step
+(including intermediate ones like `excelJS_addSheet` or `excelJS_setColumns`) are
+stored in JS state and delivered via this single callback when `excelJS_finalize` runs:
 
 ```
-If [ JSONGetElement ( $$ExcelJS_LastResult ; "success" ) = False ]
+// Inside ExcelJS - Receive Workbook:
+Set Variable [ $payload ; Get(ScriptParameter) ]
+Set Variable [ $error   ; JSONGetElement ( $payload ; "error" ) ]
+
+If [ $error ≠ "" ]
   Show Custom Dialog [
     Title:   "Excel Export Error" ;
-    Message: JSONGetElement ( $$ExcelJS_LastResult ; "error" )
+    Message: $error
   ]
-  Exit Script [ Text: $$ExcelJS_LastResult ]
+  Exit Script [ Text: $payload ]
 End If
 ```
 
 **Common errors:**
 
-| Error message                                 | Cause                                                    |
-|-----------------------------------------------|----------------------------------------------------------|
-| `Workbook not initialized`                    | Called any function before `excelJS_init`                |
-| `Sheet not found: X`                          | `sheetName` argument doesn't match a sheet added earlier |
-| `Column key not found: X`                     | `colKey` in `setFormulaRange` doesn't match a column key |
-| `Unknown style preset: X`                     | Typo in preset name (see Style Presets table)            |
-| `optionsJson must contain formula1 or values` | Dropdown options object is missing required key          |
+| Error message                                        | Cause                                                                                                                                                                                                             |
+|------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Workbook not initialized`                           | Called any function before `excelJS_init`                                                                                                                                                                         |
+| `Sheet not found: X`                                 | `sheetName` argument doesn't match a sheet added earlier                                                                                                                                                          |
+| `Column key not found: X`                            | `colKey` in `setFormulaRange` doesn't match a column key                                                                                                                                                          |
+| `Unknown style preset: X`                            | Typo in preset name (see Style Presets table)                                                                                                                                                                     |
+| `optionsJson must contain formula1 or values`        | Dropdown options object is missing required key                                                                                                                                                                   |
+| `$$ExcelJS_LastResult` is empty after a wrapper call | `Get(ScriptResult)` does not capture JS return values. Results are delivered only via the `ExcelJS - Receive Workbook` callback. Check `$$ExcelJS_LastResult` in that script, not after individual wrapper calls. |
