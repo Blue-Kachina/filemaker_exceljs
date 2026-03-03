@@ -167,6 +167,46 @@ var STYLE_PRESETS = {
   },
 };
 
+// ----------------------------------------------------------------
+// Conditional-formatting style presets
+// Use a preset name as the "style" property of any CF rule object.
+// Colors match Excel's built-in highlight-cell CF presets.
+// Note: CF fills use bgColor (not fgColor) per ExcelJS dxf convention.
+// ----------------------------------------------------------------
+var CF_STYLE_PRESETS = {
+  cf_error: {
+    font: { color: { argb: 'FF9C0006' }, bold: true },
+    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } },
+  },
+  cf_warn: {
+    font: { color: { argb: 'FF9C5700' } },
+    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFEB9C' } },
+  },
+  cf_success: {
+    font: { color: { argb: 'FF276221' } },
+    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFC6EFCE' } },
+  },
+  cf_info: {
+    font: { color: { argb: 'FF2F5496' } },
+    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFDCE6F1' } },
+  },
+  cf_neutral: {
+    fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFF2F2F2' } },
+  },
+};
+
+/**
+ * Resolve a CF style argument arriving from FileMaker or a rule object.
+ * CF preset name string → CF_STYLE_PRESETS entry
+ * JSON string          → parsed object
+ * Already an object   → returned as-is
+ */
+function parseCFStyle(arg) {
+  if (typeof arg !== 'string') return arg;
+  if (CF_STYLE_PRESETS[arg]) return CF_STYLE_PRESETS[arg];
+  return JSON.parse(arg);
+}
+
 /**
  * Resolve a preset name or raw style object to a plain ExcelJS style object.
  * Strips the internal _height hint before returning.
@@ -479,6 +519,45 @@ window.excelJS_addDropdown = function (sheetName, range, optionsJson) {
     }
     ws.dataValidations.add(range, validation);
     return ok('Added dropdown on ' + sheetName + '!' + range);
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addConditionalFormatting(sheetName, ref, rulesJson)
+ *
+ * sheetName: worksheet name
+ * ref:       range reference e.g. "A2:A100" or single cell "B5"
+ * rulesJson: JSON array of ExcelJS conditional-formatting rule objects.
+ *            The "style" property of each rule may be a CF preset name
+ *            (cf_error, cf_warn, cf_success, cf_info, cf_neutral)
+ *            or a raw ExcelJS dxf style object.
+ *
+ * Supported rule types: cellIs, expression, top10, aboveAverage,
+ *   colorScale, iconSet, dataBar, containsText.
+ *
+ * Examples:
+ *   { type:"cellIs", operator:"lessThan", formulae:[0], style:"cf_error" }
+ *   { type:"top10",  rank:10,                           style:"cf_success" }
+ *   { type:"expression", formulae:["MOD(ROW(),2)=0"],   style:"cf_neutral" }
+ */
+window.excelJS_addConditionalFormatting = function (sheetName, ref, rulesJson) {
+  try {
+    requireWorkbook();
+    var ws    = getSheet(sheetName);
+    var rules = typeof rulesJson === 'string' ? JSON.parse(rulesJson) : rulesJson;
+    // Resolve any CF preset name in each rule's "style" property
+    var resolved = rules.map(function (rule) {
+      if (rule.style === undefined) return rule;
+      var r = {};
+      var keys = Object.keys(rule);
+      for (var i = 0; i < keys.length; i++) {
+        r[keys[i]] = keys[i] === 'style' ? parseCFStyle(rule.style) : rule[keys[i]];
+      }
+      return r;
+    });
+    ws.addConditionalFormatting({ ref: ref, rules: resolved });
+    return ok('Added conditional formatting on ' + sheetName + '!' + ref
+      + ' (' + resolved.length + ' rule' + (resolved.length !== 1 ? 's' : '') + ')');
   } catch (e) { return fail(e.message); }
 };
 

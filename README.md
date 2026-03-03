@@ -456,6 +456,56 @@ Perform JavaScript in Web Viewer [
 
 ---
 
+### ExcelJS - Add Conditional Formatting
+
+Applies one or more conditional formatting rules to a cell range on a worksheet.
+Rules are evaluated in order; the first matching rule wins (standard Excel behaviour).
+
+**JS function:** `excelJS_addConditionalFormatting(sheetName, ref, rulesJson)`
+
+| Parameter   | Type            | Notes                                    |
+|-------------|-----------------|------------------------------------------|
+| `sheetName` | Text            | Sheet tab name                           |
+| `ref`       | Text            | Cell range, e.g. `"B2:B51"`              |
+| `rulesJson` | JSON Array Text | Array of ExcelJS CF rule objects (below) |
+
+**Rule object keys:**
+
+| Key        | Type                      | Notes                                                                                                                  |
+|------------|---------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `type`     | text                      | `"cellIs"`, `"expression"`, `"top10"`, `"aboveAverage"`, etc.                                                          |
+| `operator` | text                      | For `cellIs`: `"greaterThan"`, `"lessThan"`, `"greaterThanOrEqual"`, `"lessThanOrEqual"`, `"equal"`, `"between"`, etc. |
+| `formulae` | JSON array of number/text | Threshold value(s). One value for most operators; two for `"between"`.                                                 |
+| `rank`     | number                    | For `top10`: how many top/bottom items to highlight                                                                    |
+| `style`    | CF preset name or object  | See CF Style Presets below                                                                                             |
+
+**Example — highlight amounts ≥ 200 in green:**
+```
+Perform JavaScript in Web Viewer [
+  Object Name: "ExcelJS Worker" ;
+  Function Name: "excelJS_addConditionalFormatting" ;
+  Parameters: "MAIN" ; "B2:B51" ;
+    "[{\"type\":\"cellIs\",\"operator\":\"greaterThanOrEqual\",\"formulae\":[200],\"style\":\"cf_success\"}]"
+]
+```
+
+**Example — multiple rules (negative = red, top 10 = green):**
+```
+Set Variable [ $rules ;
+  "[" &
+    "{\"type\":\"cellIs\",\"operator\":\"lessThan\",\"formulae\":[0],\"style\":\"cf_error\"}," &
+    "{\"type\":\"top10\",\"rank\":10,\"style\":\"cf_success\"}" &
+  "]"
+]
+Perform JavaScript in Web Viewer [
+  Object Name: "ExcelJS Worker" ;
+  Function Name: "excelJS_addConditionalFormatting" ;
+  Parameters: "Change Order" ; "C2:C51" ; $rules
+]
+```
+
+---
+
 ### ExcelJS - Finalize
 
 Generates the `.xlsx` buffer and delivers it to FileMaker via callback.
@@ -518,7 +568,7 @@ Set Variable [ $$ExcelJS_LastResult ; JSONSetElement ( "{}" ;
 
 ---
 
-## Style Presets Reference
+## Cell Style Presets Reference
 
 Pass any preset name as a plain text string to `excelJS_styleRow`, `excelJS_styleCell`,
 or the `style` key of a column definition.
@@ -543,6 +593,32 @@ For full control, pass a raw ExcelJS style JSON object instead of a preset name:
   "fill":      { "type": "pattern", "pattern": "solid", "fgColor": { "argb": "FFFFE699" } },
   "alignment": { "horizontal": "center", "vertical": "middle" },
   "numFmt":    "$#,##0.00"
+}
+```
+
+---
+
+## CF Style Presets Reference
+
+Pass any CF preset name as the `style` value inside a conditional formatting rule object.
+These presets match Excel's built-in "Highlight Cells" colour scheme exactly.
+
+> **Note:** CF fills use `bgColor` (not `fgColor`) per the ExcelJS differential-format
+> convention. Do not use regular style presets (e.g. `"header"`) as CF rule styles.
+
+| Preset          | Text colour   | Fill colour                  | Bold |
+|-----------------|---------------|------------------------------|------|
+| `"cf_error"`    | Dark red `#9C0006`  | Light red `#FFC7CE`    | Yes  |
+| `"cf_warn"`     | Dark orange `#9C5700` | Light yellow `#FFEB9C` | —    |
+| `"cf_success"`  | Dark green `#276221` | Light green `#C6EFCE`  | —    |
+| `"cf_info"`     | Dark blue `#2F5496`  | Light blue `#DCE6F1`   | —    |
+| `"cf_neutral"`  | _(unchanged)_       | Light grey `#F2F2F2`   | —    |
+
+For full control, pass a raw ExcelJS dxf-style object as the `style` value instead:
+```json
+{
+  "font": { "color": { "argb": "FF9C0006" }, "bold": true },
+  "fill": { "type": "pattern", "pattern": "solid", "bgColor": { "argb": "FFFFC7CE" } }
 }
 ```
 
