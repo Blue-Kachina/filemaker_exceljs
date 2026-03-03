@@ -475,6 +475,99 @@ Perform JavaScript in Web Viewer [
 
 ---
 
+### ExcelJS - Add Table
+
+Creates an Excel Table on a worksheet with an optional Table Style Theme.
+The table includes an auto-filter row, structured references, and banded styling.
+
+**JS function:** `excelJS_addTable(sheetName, tableOptionsJson)`
+
+| Parameter          | Type             | Notes               |
+|--------------------|------------------|---------------------|
+| `sheetName`        | Text             | Sheet tab name      |
+| `tableOptionsJson` | JSON Object Text | See options below   |
+
+**tableOptionsJson keys:**
+
+| Key                 | Type           | Default  | Description                                                                |
+|---------------------|----------------|----------|----------------------------------------------------------------------------|
+| `name`              | text           | —        | **Required.** Unique table name in the workbook                            |
+| `columns`           | JSON array     | —        | **Required.** Column definitions (see below)                               |
+| `rows`              | JSON array     | `[]`     | Data rows — 2D array or array of objects keyed by column name              |
+| `ref`               | text           | `"A1"`   | Top-left cell of the table                                                 |
+| `theme`             | text \| `null` | —        | Table Style Theme name, e.g. `"TableStyleMedium2"`, or `null` for no theme |
+| `showRowStripes`    | bool           | `true`   | Alternate row banding                                                      |
+| `showColumnStripes` | bool           | `false`  | Alternate column banding                                                   |
+| `showFirstColumn`   | bool           | `false`  | Bold first column                                                          |
+| `showLastColumn`    | bool           | `false`  | Bold last column                                                           |
+| `headerRow`         | bool           | `true`   | Include a header row                                                       |
+| `totalsRow`         | bool           | `false`  | Include a totals row                                                       |
+
+**Column definition object keys:**
+
+| Key            | Type   | Required  | Description                              |
+|----------------|--------|-----------|------------------------------------------|
+| `name`         | text   | yes       | Column header label                      |
+| `width`        | number | no        | Column width in character units          |
+| `numFmt`       | text   | no        | Number format string, e.g. `"$#,##0.00"` |
+| `filterButton` | bool   | no        | Show filter dropdown (default `true`)    |
+
+**Valid theme names:** `"TableStyleLight1"` – `"TableStyleLight21"`,
+`"TableStyleMedium1"` – `"TableStyleMedium28"`,
+`"TableStyleDark1"` – `"TableStyleDark11"`, or `null`.
+
+**Example — Medium 2 theme with row stripes:**
+```
+Set Variable [ $cols ;
+  JSONSetElement ( "[]" ;
+    [ "[0].name"   ; "Budget Item" ; JSONString ] ;
+    [ "[0].width"  ; 50            ; JSONNumber ] ;
+    [ "[1].name"   ; "Hours"       ; JSONString ] ;
+    [ "[1].width"  ; 11            ; JSONNumber ] ;
+    [ "[1].numFmt" ; "#,##0.##"    ; JSONString ] ;
+    [ "[2].name"   ; "Labour Cost" ; JSONString ] ;
+    [ "[2].width"  ; 17            ; JSONNumber ] ;
+    [ "[2].numFmt" ; "$#,##0.00"   ; JSONString ]
+  )
+]
+
+// rows: array of objects keyed by column name
+Set Variable [ $rows ;
+  JSONSetElement ( "[]" ;
+    [ "[0].Budget Item"  ; "Concrete Work" ; JSONString ] ;
+    [ "[0].Hours"        ; 5               ; JSONNumber ] ;
+    [ "[0].Labour Cost"  ; 250             ; JSONNumber ] ;
+    [ "[1].Budget Item"  ; "Steel Framing" ; JSONString ] ;
+    [ "[1].Hours"        ; 8               ; JSONNumber ] ;
+    [ "[1].Labour Cost"  ; 400             ; JSONNumber ]
+  )
+]
+
+Set Variable [ $tableOpts ;
+  JSONSetElement ( "{}" ;
+    [ "name"           ; "ChangeOrderTable"   ; JSONString  ] ;
+    [ "ref"            ; "A1"                 ; JSONString  ] ;
+    [ "theme"          ; "TableStyleMedium2"  ; JSONString  ] ;
+    [ "showRowStripes" ; True                 ; JSONBoolean ] ;
+    [ "columns"        ; $cols               ; JSONArray   ] ;
+    [ "rows"           ; $rows               ; JSONArray   ]
+  )
+]
+
+Perform JavaScript in Web Viewer [
+  Object Name: "ExcelJS Worker" ;
+  Function Name: "excelJS_addTable" ;
+  Parameters: "Change Order" ; $tableOpts
+]
+```
+
+> **Note:** Do not call `excelJS_setColumns` or `excelJS_addRows` on the same sheet
+> region — `excelJS_addTable` handles both column headers and data in one call.
+> Additional styling (e.g. column formats for rows outside the table) can still use
+> `excelJS_styleCell` after the table is created.
+
+---
+
 ### ExcelJS - Finalize
 
 Generates the `.xlsx` buffer and delivers it to FileMaker via callback.

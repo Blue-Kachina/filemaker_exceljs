@@ -257,6 +257,15 @@ function parseStyleArg(arg) {
   return JSON.parse(arg);
 }
 
+/** Convert a column letter(s) like "A", "AB" to a 1-based column number. */
+function colLetterToNum(letters) {
+  var n = 0;
+  for (var i = 0; i < letters.length; i++) {
+    n = n * 26 + (letters.toUpperCase().charCodeAt(i) - 64);
+  }
+  return n;
+}
+
 // ----------------------------------------------------------------
 // Public API — all functions exposed on window so FileMaker can
 // call them via "Perform JavaScript in Web Viewer" by name
@@ -558,6 +567,87 @@ window.excelJS_addConditionalFormatting = function (sheetName, ref, rulesJson) {
     ws.addConditionalFormatting({ ref: ref, rules: resolved });
     return ok('Added conditional formatting on ' + sheetName + '!' + ref
       + ' (' + resolved.length + ' rule' + (resolved.length !== 1 ? 's' : '') + ')');
+  } catch (e) { return fail(e.message); }
+};
+
+/**
+ * excelJS_addTable(sheetName, tableOptionsJson)
+ *
+ * Creates an Excel Table on a worksheet with an optional Table Style Theme.
+ *
+ * tableOptionsJson keys:
+ *   name             {string}  required — unique table name in the workbook
+ *   columns          {Array}   required — column defs: { name, width?, numFmt?, filterButton? }
+ *   rows             {Array}   optional — 2D arrays or objects keyed by column name
+ *   ref              {string}  optional — top-left cell, e.g. "A1" (default "A1")
+ *   theme            {string|null} optional — e.g. "TableStyleMedium2", or null for no theme
+ *   showRowStripes   {bool}    optional — default true
+ *   showColumnStripes{bool}    optional — default false
+ *   showFirstColumn  {bool}    optional — default false
+ *   showLastColumn   {bool}    optional — default false
+ *   headerRow        {bool}    optional — default true
+ *   totalsRow        {bool}    optional — default false
+ */
+window.excelJS_addTable = function (sheetName, tableOptionsJson) {
+  try {
+    requireWorkbook();
+    var ws   = getSheet(sheetName);
+    var opts = typeof tableOptionsJson === 'string'
+                 ? JSON.parse(tableOptionsJson) : tableOptionsJson;
+
+    if (!opts.name)    throw new Error('tableOptionsJson.name is required');
+    if (!opts.columns || !opts.columns.length)
+                       throw new Error('tableOptionsJson.columns is required');
+
+    var colNames = opts.columns.map(function (c) { return c.name; });
+
+    // ExcelJS table column defs (name + optional filterButton)
+    var tableCols = opts.columns.map(function (c) {
+      return {
+        name:         c.name,
+        filterButton: c.filterButton !== undefined ? parseFMBool(c.filterButton) : true,
+      };
+    });
+
+    // Normalise rows: object rows → ordered value arrays
+    var rows = (opts.rows || []).map(function (row) {
+      if (Array.isArray(row)) return row;
+      return colNames.map(function (n) {
+        return row[n] !== undefined ? row[n] : null;
+      });
+    });
+
+    // Style object (theme:null is valid — means no theme)
+    var style = {};
+    if ('theme'              in opts) style.theme              = opts.theme;
+    if ('showRowStripes'     in opts) style.showRowStripes     = parseFMBool(opts.showRowStripes);
+    if ('showColumnStripes'  in opts) style.showColumnStripes  = parseFMBool(opts.showColumnStripes);
+    if ('showFirstColumn'    in opts) style.showFirstColumn    = parseFMBool(opts.showFirstColumn);
+    if ('showLastColumn'     in opts) style.showLastColumn     = parseFMBool(opts.showLastColumn);
+
+    var tableOpts = {
+      name:       opts.name,
+      ref:        opts.ref || 'A1',
+      headerRow:  opts.headerRow  !== undefined ? parseFMBool(opts.headerRow)  : true,
+      totalsRow:  opts.totalsRow  !== undefined ? parseFMBool(opts.totalsRow)  : false,
+      style:      style,
+      columns:    tableCols,
+      rows:       rows,
+    };
+
+    ws.addTable(tableOpts);
+
+    // Apply column widths / numFmt (not part of ExcelJS table def)
+    var refMatch  = String(opts.ref || 'A1').match(/^([A-Za-z]+)/);
+    var startCol  = refMatch ? colLetterToNum(refMatch[1]) : 1;
+    opts.columns.forEach(function (c, i) {
+      var wsCol = ws.getColumn(startCol + i);
+      if (c.width  !== undefined) wsCol.width  = c.width;
+      if (c.numFmt !== undefined) wsCol.numFmt = c.numFmt;
+    });
+
+    return ok('Added table "' + opts.name + '" to ' + sheetName
+      + ' (' + rows.length + ' data row' + (rows.length !== 1 ? 's' : '') + ')');
   } catch (e) { return fail(e.message); }
 };
 
