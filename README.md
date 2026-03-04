@@ -2,15 +2,18 @@
 
 ## Overview
 
-We're loading up a FileMaker Webviewer with HTML and JavaScript to create a wrapper around 
+This is a FileMaker Solution that you can connect to your own.
+Just keep a copy of this file beside your own, and add it as an External Data Source.
+I load up a FileMaker Webviewer with HTML and JavaScript creating a wrapper around 
 the [ExcelJS](https://github.com/exceljs/exceljs) library.
 Using the provided FileMaker Scripts, you can custom-build a rich Excel (XLSX) spreadsheet.  
 You can do so incrementally too, because our webviewer holds a live `ExcelJS.Workbook` in memory. 
 
 ## General Workflow
-1) Init Workbook
-2) Incrementally build up your custom spreadsheet using provided functions (details below)
-3) Finalize
+1) Run the `Ensure Window` Script to ensure a window appears with my webviewer on it
+2) Run the `Init Workbook` Script to create a workbook that you can start incrementally working on.
+3) Build your custom spreadsheet by calling other FileMaker Scripts I've provided (Each of the scripts mirrors one of the functions from ExcelJS -- and you can find details below)
+4) Run the `Finalize` Script to finish up with the Excel Spreadsheet and prompt the user to save it
 
 ---
 
