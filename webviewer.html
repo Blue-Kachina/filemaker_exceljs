@@ -495,7 +495,7 @@ window.excelJS_freezePane = function (sheetName, row, col) {
 window.excelJS_addDefinedName = function (name, ref) {
   try {
     requireWorkbook();
-    window.excelState.workbook.definedNames.add(name, ref);
+    window.excelState.workbook.definedNames.add(ref, name);
     return ok('Added defined name: ' + name + ' = ' + ref);
   } catch (e) { return fail(e.message); }
 };

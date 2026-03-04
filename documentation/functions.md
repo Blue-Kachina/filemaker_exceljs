@@ -392,18 +392,18 @@ Adds an Excel dropdown list validation to a cell range.
 
 **optionsJson variants:**
 
-| Key        | Type               | Description                                      |
-|------------|--------------------|--------------------------------------------------|
-| `formula1` | text               | Defined name or range reference                  |
-| `values`   | JSON array of text | Inline list (keep total length under ~255 chars) |
+| Key        | Type               | Description                                                                                                                                                                                                 |
+|------------|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `formula1` | text               | Sheet range reference, e.g. `"WIDGETS!$B$2:$B$999"`. Use a sheet-qualified range rather than a bare defined-name identifier — ExcelJS 4.4.0 cannot serialize plain identifiers in data-validation formulas. |
+| `values`   | JSON array of text | Inline list (keep total length under ~255 chars)                                                                                                                                                            |
 
-**Example — using a defined name:**
+**Example — using a sheet range reference:**
 ```
 Perform JavaScript in Web Viewer [
   Object Name: "ExcelJS Worker" ;
   Function Name: "excelJS_addDropdown" ;
   Parameters: "Change Order" ; "A2:A51" ;
-    JSONSetElement ( "{}" ; "formula1" ; "BudgetItems_range" ; JSONString )
+    JSONSetElement ( "{}" ; "formula1" ; "BudgetItems_VL!$B$2:$B$999" ; JSONString )
 ]
 ```
 
@@ -764,7 +764,7 @@ ExcelJS - Set Formula For Range
 ExcelJS - Add Data Validation Dropdown
   sheet:       "Change Order"
   range:       "A2:A51"
-  options:     { "formula1": "BudgetItems_range" }
+  options:     { "formula1": "BudgetItems_VL!$B$2:$B$999" }
 
 # ── Export ────────────────────────────────────────────────────────────────
 ExcelJS - Finalize
