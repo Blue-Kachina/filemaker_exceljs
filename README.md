@@ -40,22 +40,40 @@ This is still a work in progress, so expect this list to be udpated.
 
 See [documentation/functions.md](documentation/functions.md) for full parameter details, examples, and style preset references.
 
-| Script                                                                                                      | Description                                                                                                        |
-|-------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
-| [ExcelJS - Init Workbook](documentation/functions.md#exceljs---init-workbook)                               | Resets the in-memory workbook. Always call this first.                                                             |
-| [ExcelJS - Add Sheet](documentation/functions.md#exceljs---add-sheet)                                       | Adds a worksheet to the workbook.                                                                                  |
-| [ExcelJS - Set Sheet Visibility](documentation/functions.md#exceljs---set-sheet-visibility)                 | Show or hide an existing sheet.                                                                                    |
-| [ExcelJS - Set Columns](documentation/functions.md#exceljs---set-columns)                                   | Defines columns on a sheet (keys, headers, widths, hidden flag, default style). Must be called before adding rows. |
-| [ExcelJS - Add Row](documentation/functions.md#exceljs---add-row)                                           | Adds a single row to a sheet.                                                                                      |
-| [ExcelJS - Add Rows](documentation/functions.md#exceljs---add-rows)                                         | Adds multiple rows in one JS call. Preferred over N calls to Add Row for large datasets.                           |
-| [ExcelJS - Set Cell Value](documentation/functions.md#exceljs---set-cell-value)                             | Sets a single cell value by address.                                                                               |
-| [ExcelJS - Set Cell Formula](documentation/functions.md#exceljs---set-cell-formula)                         | Sets a formula in a single cell.                                                                                   |
-| [ExcelJS - Set Formula For Range](documentation/functions.md#exceljs---set-formula-for-range)               | Applies a per-row formula across a column range using a `{ROW}` placeholder.                                       |
-| [ExcelJS - Style Row](documentation/functions.md#exceljs---style-row)                                       | Applies a style preset or raw JSON style to every cell in a row.                                                   |
-| [ExcelJS - Style Cell](documentation/functions.md#exceljs---style-cell)                                     | Applies a style preset or raw JSON style to a single cell.                                                         |
-| [ExcelJS - Freeze Panes](documentation/functions.md#exceljs---freeze-panes)                                 | Freezes rows and/or columns on a sheet.                                                                            |
-| [ExcelJS - Add Defined Name](documentation/functions.md#exceljs---add-defined-name)                         | Registers a workbook-level named range.                                                                            |
-| [ExcelJS - Add Data Validation Dropdown](documentation/functions.md#exceljs---add-data-validation-dropdown) | Adds a dropdown list validation to a cell range.                                                                   |
-| [ExcelJS - Add Conditional Formatting](documentation/functions.md#exceljs---add-conditional-formatting)     | Applies one or more conditional formatting rules to a cell range.                                                  |
-| [ExcelJS - Finalize](documentation/functions.md#exceljs---finalize)                                         | Generates the `.xlsx` buffer and delivers it to FileMaker via callback.                                            |
-| [ExcelJS - Receive Workbook](documentation/functions.md#exceljs---receive-workbook)                         | Callback script invoked by JavaScript to deliver the workbook or an error.                                         |
+### Initialization
+
+| Script                                                                                    | Description                                            |
+|-------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| [ExcelJS - Init Workbook](documentation/functions.md#exceljs---init-workbook)             | Resets the in-memory workbook. Always call this first. |
+
+### Creation
+
+| Script                                                                          | Description                                                                                                        |
+|---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| [ExcelJS - Add Sheet](documentation/functions.md#exceljs---add-sheet)           | Adds a worksheet to the workbook.                                                                                  |
+| [ExcelJS - Set Columns](documentation/functions.md#exceljs---set-columns)       | Defines columns on a sheet (keys, headers, widths, hidden flag, default style). Must be called before adding rows. |
+| [ExcelJS - Add Row](documentation/functions.md#exceljs---add-row)               | Adds a single row to a sheet.                                                                                      |
+| [ExcelJS - Add Rows](documentation/functions.md#exceljs---add-rows)             | Adds multiple rows in one JS call. Preferred over N calls to Add Row for large datasets.                           |
+| [ExcelJS - Add Table](documentation/functions.md#exceljs---add-table)           | Creates an Excel Table with optional theme, banding, and structured references.                                    |
+
+### Modification
+
+| Script                                                                                                      | Description                                                                  |
+|-------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| [ExcelJS - Set Sheet Visibility](documentation/functions.md#exceljs---set-sheet-visibility)                 | Show or hide an existing sheet.                                              |
+| [ExcelJS - Set Cell Value](documentation/functions.md#exceljs---set-cell-value)                             | Sets a single cell value by address.                                         |
+| [ExcelJS - Set Cell Formula](documentation/functions.md#exceljs---set-cell-formula)                         | Sets a formula in a single cell.                                             |
+| [ExcelJS - Set Formula For Range](documentation/functions.md#exceljs---set-formula-for-range)               | Applies a per-row formula across a column range using a `{ROW}` placeholder. |
+| [ExcelJS - Style Row](documentation/functions.md#exceljs---style-row)                                       | Applies a style preset or raw JSON style to every cell in a row.             |
+| [ExcelJS - Style Cell](documentation/functions.md#exceljs---style-cell)                                     | Applies a style preset or raw JSON style to a single cell.                   |
+| [ExcelJS - Freeze Panes](documentation/functions.md#exceljs---freeze-panes)                                 | Freezes rows and/or columns on a sheet.                                      |
+| [ExcelJS - Add Defined Name](documentation/functions.md#exceljs---add-defined-name)                         | Registers a workbook-level named range.                                      |
+| [ExcelJS - Add Data Validation Dropdown](documentation/functions.md#exceljs---add-data-validation-dropdown) | Adds a dropdown list validation to a cell range.                             |
+| [ExcelJS - Add Conditional Formatting](documentation/functions.md#exceljs---add-conditional-formatting)     | Applies one or more conditional formatting rules to a cell range.            |
+
+### Finalizing
+
+| Script                                                                                      | Description                                                                |
+|---------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| [ExcelJS - Finalize](documentation/functions.md#exceljs---finalize)                         | Generates the `.xlsx` buffer and delivers it to FileMaker via callback.    |
+| [ExcelJS - Receive Workbook](documentation/functions.md#exceljs---receive-workbook)         | Callback script invoked by JavaScript to deliver the workbook or an error. |
