@@ -17,7 +17,8 @@ This can be done incrementally too, because our webviewer holds a live `ExcelJS.
 3) Build your custom spreadsheet by calling other FileMaker Scripts I've provided (Each of the scripts mirrors one of the functions from ExcelJS -- and you can find details below)
 4) Run the `Finalize` Script to finish up with the Excel Spreadsheet and prompt the user to save it
 
-There's a `Basic Example` and an `Advanced Example` Script that you can use to get a good understanding also.
+There's both a `Basic Example` and an `Advanced Example` Script that you can use to get a good understanding also.
+
 ---
 
 ## Helper File Structure
