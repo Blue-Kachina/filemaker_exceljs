@@ -5,10 +5,10 @@
 This is a FileMaker Solution that you can connect to your own -- just keep a copy of this file beside your own, and add it as an External Data Source.
 
 It's a very barebones system comprised of just a single layout.
-That layout loads up a FileMaker Webviewer with HTML and JavaScript that even instantiates an instance of 
+That layout loads up a FileMaker Webviewer with HTML and JavaScript that instantiates an instance of 
 the [ExcelJS](https://github.com/exceljs/exceljs) library.
-The system has several FileMaker Scripts, most of them mirroring an ExcelJS function. 
-By virtue of invoking them, you custom-build a rich Excel (XLSX) spreadsheet.  
+We've got several FileMaker Scripts, most of them mirroring an ExcelJS function. 
+They can be invoked even from the context of your system, and by virtue of doing so, you custom-build a rich Excel (XLSX) spreadsheet.  
 This can be done incrementally too, because our webviewer holds a live `ExcelJS.Workbook` in memory. 
 
 ## General Workflow
