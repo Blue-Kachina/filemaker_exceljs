@@ -48,9 +48,10 @@ See [documentation/functions.md](documentation/functions.md) for full parameter 
 
 ### Initialization
 
-| Script                                                                                    | Description                                            |
-|-------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| [ExcelJS - Init Workbook](documentation/functions.md#exceljs---init-workbook)             | Resets the in-memory workbook. Always call this first. |
+| Script                                                                                    | Description                                                                       |
+|-------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+| [ExcelJS - Ensure Window](documentation/functions.md#exceljs---ensure-window)             | Opens the ExcelJS Worker window if needed and brings it into focus. Call first.   |
+| [ExcelJS - Init Workbook](documentation/functions.md#exceljs---init-workbook)             | Resets the in-memory workbook. Call after Ensure Window.                          |
 
 ### Creation
 

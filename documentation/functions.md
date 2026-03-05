@@ -1,9 +1,48 @@
 # Script Reference
 
-Every script calls **Perform JavaScript in Web Viewer**. The JS return value is
+Every helper script calls **Perform JavaScript in Web Viewer**. The JS return value is
 discarded by FileMaker. Check `$$ExcelJS_LastResult` only in the `ExcelJS - Receive
 Workbook` callback script — that is where all outcomes (success and error) are
 delivered.
+
+---
+
+### ExcelJS - Ensure Window
+
+Ensures the **ExcelJS Worker** window is open and in focus before any JavaScript
+call is made. Call this at the start of every export sequence, before
+`ExcelJS - Init Workbook`. Every JS helper script calls it automatically via an
+internal window guard, so direct calls are only needed when writing custom sequences.
+
+**Parameters:** _(none)_
+
+**What it does:**
+- If a window named `"ExcelJS Worker"` already exists, selects it and returns.
+- If no such window exists, creates one on the `ExcelJS_Worker` layout and pauses
+  briefly to allow the WebViewer to finish loading.
+
+**Return value:** Empty string on success. JSON object `{ "errorMessage": "..." }` on failure.
+
+**Recommended call pattern (window guard):**
+```
+Perform Script [ "ExcelJS - Ensure Window" ]
+Set Variable [ $windowError ;
+  Let ( [
+    _r    = Get ( ScriptResult ) ;
+    _fmt  = JSONFormatElements ( _r ) ;
+    _json = not Exact ( Left ( _fmt ; 1 ) ; "?" ) ;
+    _err  = If ( _json ; JSONGetElement ( _r ; "errorMessage" ) )
+  ] ; _err )
+]
+If [ $windowError ≠ "" ]
+  Exit Script [ Text: $windowError ]
+End If
+```
+
+> **Why keep the window alive?** ExcelJS loads from CDN. Closing and re-opening the
+> window forces a CDN re-fetch, which may not finish before the next
+> `Perform JavaScript in Web Viewer` fires — causing Error 5 on every other run.
+> Leaving the window open eliminates this race condition.
 
 ---
 
